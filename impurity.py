@@ -98,3 +98,26 @@ def findHighestGainAttribute(df, attributes, targets, func):
             bestAttribute = attribute
             bestGain = gain
     return bestAttribute, bestGain
+
+# Chi-Square Stop is a method of determining when a decision tree
+# should turn the current value into a leaf node, when the outcome
+# of a split is no better than random.
+# We split on the given attribute and gather the following information:
+#   - for each attribute value, count how many there are for each attribute
+#     value-target pair (sunny, yes), (sunny, no), etc...
+#   - for each attribute value, calculate expected amount for each
+#     value-target pair using total number of attributes with that value
+#     and the proportion of the target from the parent set
+#   - Subtrack the actual from the expected and square the result, then
+#     divide that by the expected amount.
+#   - Add all values from the previous step together to get a "critical value"
+#   - Calculate 'degrees of freedom' (# classes - 1) * (# attributes - 1)
+#   - Calculate alpha value by subtracting our desired confidence level from 1.
+#     Ex: 95% confidence, alpha = 1 - .95 = .05
+#   - Look up chi-squared value using degrees of freedom and confidence value
+#   - Compaire our critical value to our chi-squared value.
+#       - critical >= chi -> Significant, continue to branch
+#       - critical < chi -> Not Significant, create leaf and stop
+# cv = sum_{all attribute-target pairs} (actual - expected)^2 / expected
+def chiSquareStop(df, attribute, targets):
+    pass
