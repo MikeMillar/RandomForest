@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import scipy.stats as sp
 
 # Entropy is measure of how impure the data set is.
 # Computed as: negative of the summation for all classes (targets)
@@ -114,10 +115,49 @@ def findHighestGainAttribute(df, attributes, targets, func):
 #   - Calculate 'degrees of freedom' (# classes - 1) * (# attributes - 1)
 #   - Calculate alpha value by subtracting our desired confidence level from 1.
 #     Ex: 95% confidence, alpha = 1 - .95 = .05
+#     (scipy.stats.chi2.ppf wants the condifence level before subtraction: 0.95)
+#     scipy.stats.chi2.ppf(confidence_level, degrees_of_freedom)
 #   - Look up chi-squared value using degrees of freedom and confidence value
 #   - Compaire our critical value to our chi-squared value.
 #       - critical >= chi -> Significant, continue to branch
 #       - critical < chi -> Not Significant, create leaf and stop
 # cv = sum_{all attribute-target pairs} (actual - expected)^2 / expected
-def chiSquareStop(df, attribute, targets):
-    pass
+# Returns True if the result is not better than random and we should not expand
+def chiSquareStop(df, attribute, targets, confidence):
+    # Get total size of data frame
+    totalSize = len(df.index)
+    # Get values of target
+    targetValues = df[targets].unique()
+    # Get target value counts
+    targetCounts = df[targets].value_counts()
+    # Calculate proportions
+    targetProportions = []
+    for i in range(0, len(targetValues)):
+        targetProportions.append(targetCounts[targetValues[i]] / totalSize)
+    # Split on attribute values
+    splits = [y for x, y in df.groupby(attribute)]
+    # Calculate critical value
+    criticalValue = 0.0
+    for split in splits:
+        # Get total count in split
+        splitSize = len(split.index)
+        # Get target counts in split
+        splitTargetCounts = split[targets].value_counts()
+        # Calculate critical value part
+        for i in range(0, len(targetValues)):
+            actual = 0
+            if targetValues[i] in splitTargetCounts:
+                actual = splitTargetCounts[targetValues[i]]
+            expected = splitSize * targetProportions[i]
+            criticalValue += np.square(actual - expected) / expected
+    # Calculate degrees of freedom
+    df = (len(targetValues) - 1) * (len(splits) - 1)
+    # Lookup chi2 value for confidence and df
+    chi = sp.chi2.ppf(confidence, df)
+    # Compare critical value to chi2 value
+    print("Comparing c.v.", criticalValue, "to chi2", chi)
+    if criticalValue >= chi:
+        # Value is significant, do not stop
+        return False
+    # Value not significant, stop
+    return True
