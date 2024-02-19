@@ -16,6 +16,9 @@ def entropy(df, targets):
     # Calculate entropy for each
     entropy = 0.0
     for count in counts:
+        # check if count is zero
+        if count == 0:
+            continue
         # for each count, compute entropy and add to existing entropy
         proportion = count / totalSize
         entropy += proportion * np.log2(proportion)
@@ -31,6 +34,8 @@ def entropy(df, targets):
 def giniIndex(df, targets):
     # Get total size of teh data frame
     totalSize = len(df.index)
+    if totalSize == 0:
+        return 1
     # Get counts by targets column
     counts = df[targets].value_counts()
     # Calculate gini index for each count
@@ -63,18 +68,32 @@ def misclassificationIndex(df, targets):
 # attribute: string name of attribute column in df
 # targets : string name of the target column in df
 # func: impurity function to run
-def informationGain(df, attribute, targets, func):
+# threshold: for numerical non-categorical data
+def informationGain(df, attribute, targets, func, threshold=None):
     # Get total size of the data frame
     totalSize = len(df.index)
     # Calculate entropy of entire data set
     impurity = func(df, targets)
     # Calculate information gain summation
     infoGain = 0.0
-    # Split data frame based on categorical attribute values
-    splits = [y for x, y in df.groupby(attribute)]
+    splits = None
+    if threshold != None:
+        # split data based on threshold
+        # left = np.array([y for x, y in df if y[attribute] <= threshold])
+        # right = np.array([y for x, y in df if y[attribute] > threshold])
+        left = df[df[attribute] <= threshold]
+        right = df[df[attribute] > threshold]
+        if not(len(left)>0 and len(right)>0):
+            return 0
+        splits = [left, right]
+    else:
+        # Split data frame based on categorical attribute values
+        splits = [y for x, y in df.groupby(attribute)]
     for split in splits:
         # Get total size of split
         splitSize = len(split.index)
+        if splitSize == 0:
+            continue
         # Get entropy of split
         splitImpurity = func(split, targets)
         # Calculate info gain of the split and add to existing info gain
@@ -92,13 +111,23 @@ def findHighestGainAttribute(df, attributes, targets, func):
     # Set default best attribute to be first
     bestAttribute = attributes[0]
     bestGain = 0.0
+    bestThreshold = None
     # Iterate through all attributes and find highest information gain
     for attribute in attributes:
-        gain = informationGain(df, attribute, targets, func)
-        if gain > bestGain:
-            bestAttribute = attribute
-            bestGain = gain
-    return bestAttribute, bestGain
+        if df[attribute].dtypes.name != "category":
+            potential_thresholds = np.unique(df[attribute])
+            for threshold in potential_thresholds:
+                gain = informationGain(df, attribute, targets, func, threshold)
+                if gain > bestGain:
+                    bestAttribute = attribute
+                    bestGain = gain
+                    bestThreshold = threshold
+        else:
+            gain = informationGain(df, attribute, targets, func)
+            if gain > bestGain:
+                bestAttribute = attribute
+                bestGain = gain
+    return bestAttribute, bestGain, bestThreshold
 
 # Chi-Square Stop is a method of determining when a decision tree
 # should turn the current value into a leaf node, when the outcome
