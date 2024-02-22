@@ -81,7 +81,7 @@ class DecisionTreeClassifier():
                 remainingAttributes.remove(bestAttribute)
                 # Set the child predicate, and recurse
                 nextNode.predicates.append(pred)
-                child = self.train(split, target, remainingAttributes)
+                child = self.train(split, target, remainingAttributes, depth+1)
                 if child != None:
                     child.parent = nextNode.attribute
                     nextNode.children.append(child)
@@ -92,12 +92,12 @@ class DecisionTreeClassifier():
             left = np.array([y for x, y in dataset if y[bestAttribute] <= bestThreshold])
             right = np.array([y for x, y in dataset if y[bestAttribute] > bestThreshold])
             # Can re-use continous attributes again, so do not remove attribute
-            leftChild = self.train(left, target, attributes)
+            leftChild = self.train(left, target, attributes, depth+1)
             if leftChild != None:
                 nextNode.predicates.append(leftPred)
                 leftChild.parent = nextNode.attribute
                 nextNode.children.append(leftChild)
-            rightChild = self.train(right, target, attributes)
+            rightChild = self.train(right, target, attributes, depth+1)
             if rightChild != None:
                 nextNode.predicates.append(rightPred)
                 rightChild.parent = nextNode.attribute
