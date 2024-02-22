@@ -7,8 +7,9 @@ class DecisionTreeClassifier():
     # Initialize the decision tree classifier.
     # impurity_function -> function to evaluate impurity of the dataset with. default: entropy
     # confidence_level -> how confident do we want to train the tree to be. default: 95% (0.95)
-    def __init__(self, imurity_function=impurity.entropy, confidence_level=0.95) -> None:
+    def __init__(self, max_depth=None, imurity_function=impurity.entropy, confidence_level=0.95) -> None:
         self.root = None
+        self.max_depth = max_depth
         self.impurity_function = imurity_function
         self.confidence_level = confidence_level
         pass
@@ -17,22 +18,27 @@ class DecisionTreeClassifier():
     # dataset -> Dataset to train with
     # target -> name of target attribute
     # attributes -> list of attributes to train with
-    def train(self, dataset, target, attributes):
+    # depth -> current depth of the tree
+    def train(self, dataset, target, attributes, depth=0):
         # Create a new node
         nextNode = Node()
 
         # If root not yet set, set nextNode as root
         if self.root == None:
             self.root = nextNode
-
         # check if dataset has any data
         dataCount = len(dataset.index)
         if dataCount == 0: # No data
-            nextNode.type = "leaf"
-            return nextNode
+            return None
         elif dataCount == 1: # Only 1 data, no need to classify
             nextNode.type = "leaf"
             nextNode.value = dataset[0][target]
+            return nextNode
+        # check if max depth reached
+        if self.max_depth == depth:
+            # Get most common value of target dataset
+            nextNode.type = "leaf"
+            nextNode.value = dataset[target].value_counts().idxmax()
             return nextNode
         # check impurity of dataset with respect to target
         entropy = impurity.entropy(dataset, target)
@@ -76,23 +82,26 @@ class DecisionTreeClassifier():
                 # Set the child predicate, and recurse
                 nextNode.predicates.append(pred)
                 child = self.train(split, target, remainingAttributes)
-                child.parent = nextNode.attribute
-                nextNode.children.append(child)
+                if child != None:
+                    child.parent = nextNode.attribute
+                    nextNode.children.append(child)
         else: # assume continuous numerical
             # Split data based on best info gain threshold
             leftPred = lambda x : x <= bestThreshold
             rightPred = lambda x : x > bestThreshold
-            nextNode.predicates.append(leftPred)
-            nextNode.predicates.append(rightPred)
             left = np.array([y for x, y in dataset if y[bestAttribute] <= bestThreshold])
             right = np.array([y for x, y in dataset if y[bestAttribute] > bestThreshold])
             # Can re-use continous attributes again, so do not remove attribute
             leftChild = self.train(left, target, attributes)
-            leftChild.parent = nextNode.attribute
+            if leftChild != None:
+                nextNode.predicates.append(leftPred)
+                leftChild.parent = nextNode.attribute
+                nextNode.children.append(leftChild)
             rightChild = self.train(right, target, attributes)
-            rightChild.parent = nextNode.attribute
-            nextNode.children.append(leftChild)
-            nextNode.children.append(rightChild)
+            if rightChild != None:
+                nextNode.predicates.append(rightPred)
+                rightChild.parent = nextNode.attribute
+                nextNode.children.append(rightChild)
 
         return nextNode
 
