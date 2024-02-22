@@ -106,10 +106,34 @@ class DecisionTreeClassifier():
         return nextNode
 
     # Given a dataset, classifies the dataset based on the trained decision tree
-    def classify(self):
+    def classify(self, dataset, target, node=None):
         # check if a tree has been trained
+        if self.root == None:
+            # Tree not trained, cannot classify
+            print("Classifier not trained, cannot classify.")
+            return
         # check if dataset has data
+        dataCount = len(dataset.index)
+        if dataCount == 0: # No data
+            print("No data to classify.")
+            return
         # classify data
+        if node == None: # Start from the root node
+            node = self.root
+
+        # Check if current node is leaf
+        if node.type == "leaf":
+            # Set target column value for all data
+            print("TODO: Set target value for all data")
+            dataset[target] = dataset[target].apply(lambda x : node.value)
+            # !!!!!! NOT SURE IF ABOVE WORKS !!!!!!!
+        attribute = node.attribute
+        # check if attribute is categorical
+        if dataset[attribute].dtypes.name != "category":
+            # split on category
+            print("TODO: Split on category")
+        else: # Split on predicate threshold value
+            print("TODO: split on threshold value")
         pass
 
     # Given a trained decision tree, save the tree to a file
