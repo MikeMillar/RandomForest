@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import scipy.stats as sp
+import utils
 
 # Entropy is measure of how impure the data set is.
 # Computed as: negative of the summation for all classes (targets)
@@ -79,16 +80,10 @@ def informationGain(df, attribute, targets, func, threshold=None):
     splits = None
     if threshold != None:
         # split data based on threshold
-        # left = np.array([y for x, y in df if y[attribute] <= threshold])
-        # right = np.array([y for x, y in df if y[attribute] > threshold])
-        left = df[df[attribute] <= threshold]
-        right = df[df[attribute] > threshold]
-        if not(len(left)>0 and len(right)>0):
-            return 0
-        splits = [left, right]
+        splits = utils.split_on_feature(df, attribute, True, True, threshold)
     else:
         # Split data frame based on categorical attribute values
-        splits = [y for x, y in df.groupby(attribute)]
+        splits = utils.split_on_feature(df, attribute, True, True)
     for split in splits:
         # Get total size of split
         splitSize = len(split.index)
@@ -107,15 +102,24 @@ def informationGain(df, attribute, targets, func, threshold=None):
 # targets : string name of target column
 # func : impurity function to use
 def findHighestGainAttribute(df, attributes, targets, func):
-    print(df)
+    # print('Finding highest gain attribute')
     # Set default best attribute to be first
     bestAttribute = attributes[0]
     bestGain = 0.0
     bestThreshold = None
     # Iterate through all attributes and find highest information gain
     for attribute in attributes:
+        # print('Calculating info gain for', attribute)
         if df[attribute].dtypes.name != "category":
-            potential_thresholds = np.unique(df[attribute])
+            # copy dataframe and sort by attribute
+            df2 = df.sort_values(attribute)
+            # find where target changes
+            df2['target_changed'] = df2[targets].shift() != df2[targets]
+            changed = df2[df2['target_changed'] == True]
+            # get unique values of attribute where the target changed
+            potential_thresholds = np.unique(changed[attribute])
+            bestThreshold = potential_thresholds.mean()
+            # iterate through possible thresholds to find best
             for threshold in potential_thresholds:
                 gain = informationGain(df, attribute, targets, func, threshold)
                 if gain > bestGain:
@@ -123,6 +127,7 @@ def findHighestGainAttribute(df, attributes, targets, func):
                     bestGain = gain
                     bestThreshold = threshold
         else:
+            # find best gain attribute
             gain = informationGain(df, attribute, targets, func)
             if gain > bestGain:
                 bestAttribute = attribute
@@ -152,41 +157,36 @@ def findHighestGainAttribute(df, attributes, targets, func):
 #       - critical < chi -> Not Significant, create leaf and stop
 # cv = sum_{all attribute-target pairs} (actual - expected)^2 / expected
 # Returns True if the result is not better than random and we should not expand
-def chiSquareStop(df, attribute, targets, confidence):
-    # Get total size of data frame
-    totalSize = len(df.index)
-    # Get values of target
-    targetValues = df[targets].unique()
-    # Get target value counts
-    targetCounts = df[targets].value_counts()
-    # Calculate proportions
-    targetProportions = []
-    for i in range(0, len(targetValues)):
-        targetProportions.append(targetCounts[targetValues[i]] / totalSize)
-    # Split on attribute values
-    splits = [y for x, y in df.groupby(attribute)]
-    # Calculate critical value
+def chiSquareStop(splits, dataCount, threshold, target, confidence, attributeCounts, targetCounts, parent_proportions):
+    # calculate degrees of freedom for full data set on the attribute
+    degrees_of_freedom = -1
+    if threshold == None: # calculate categorical degrees of freedom
+        degrees_of_freedom = (len(attributeCounts) - 1) * (len(targetCounts) - 1)
+    else: # calculate a 2-split degrees of freedom
+        degrees_of_freedom = len(targetCounts) - 1
+
+    # calculate critical values
     criticalValue = 0.0
     for split in splits:
-        # Get total count in split
-        splitSize = len(split.index)
-        # Get target counts in split
-        splitTargetCounts = split[targets].value_counts()
-        # Calculate critical value part
-        for i in range(0, len(targetValues)):
-            actual = 0
-            if targetValues[i] in splitTargetCounts:
-                actual = splitTargetCounts[targetValues[i]]
-            expected = splitSize * targetProportions[i]
-            criticalValue += np.square(actual - expected) / expected
-    # Calculate degrees of freedom
-    df = (len(targetValues) - 1) * (len(splits) - 1)
+        if len(split) == 0:
+            continue
+        cv_part = calculateCriticalPart(split, target, dataCount, parent_proportions)
+        criticalValue += cv_part
+    
     # Lookup chi2 value for confidence and df
-    chi = sp.chi2.ppf(confidence, df)
-    # Compare critical value to chi2 value
-    print("Comparing c.v.", criticalValue, "to chi2", chi)
-    if criticalValue >= chi:
-        # Value is significant, do not stop
-        return False
-    # Value not significant, stop
-    return True
+    chi = sp.chi2.ppf(confidence, degrees_of_freedom)
+    return True if criticalValue < chi else False
+
+def calculateCriticalPart(split, target, dataCount, parent_proportions) -> float:
+    split_counts = split[target].value_counts()
+    cv_part = 0.0
+    for key in parent_proportions.keys():
+        # actual number in split with matching target
+        actual = split_counts[key]
+        # expected number in split with matching target
+        expected = len(split) * parent_proportions[key]
+        # calculate split part of critical value
+        numer = actual - expected
+        cv = (numer * numer) / expected
+        cv_part += cv
+    return cv_part
