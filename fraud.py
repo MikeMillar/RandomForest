@@ -31,6 +31,9 @@ sample_cutoff = 10 # Minimum number of samples required to branch
 confidence_alpha = 0.95 # Can be between 0 and 1, indicates the confidence value when performing chi-square stop calculation
 gain_func = impurity.entropy # Information Gain metric function to use, entropy, giniIndex, or misclassificationIndex
 
+train_file = 'data/train/train.csv'
+test_file = 'data/test/test.csv'
+
 def current_time_milli():
     return round(time.time() * 1000)
 
@@ -95,8 +98,8 @@ def predict(classifier, test_split) -> pd.DataFrame:
 
 if __name__ == '__main__':
     # Load the data
-    train_data = prepare_data('data/train/train.csv')
-    test_data = prepare_data('data/test/test.csv', True)
+    train_data = prepare_data(train_file)
+    test_data = prepare_data(test_file, True)
     target = 'isFraud'
     features = list(train_data.columns)
     features.remove(target)
